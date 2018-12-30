@@ -21,12 +21,16 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            buildConfigField('String', 'API_URL', "\"https://df45e3882.ngrok.io\"")
+            buildConfigField('String', 'API_URL', "\"https://1011ecb4.ngrok.io\"")
+            buildConfigField('String', 'API_USERNAME', "\"umut\"")
+            buildConfigField('String', 'API_PASSWORD', "\"umut\"")
         }
         debug {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            buildConfigField('String', 'API_URL', "\"https://df45e3882.ngrok.io\"")
+            buildConfigField('String', 'API_URL', "\"https://1011ecb4.ngrok.io\"")
+            buildConfigField('String', 'API_USERNAME', "\"umut\"")
+            buildConfigField('String', 'API_PASSWORD', "\"umut\"")
         }
     }
 }

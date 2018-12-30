@@ -1,29 +1,41 @@
 package com.umut
 
-import io.ktor.application.*
-import io.ktor.response.*
-import io.ktor.request.*
-import io.ktor.features.*
-import org.slf4j.event.*
-import io.ktor.routing.*
-import io.ktor.http.*
-import com.fasterxml.jackson.databind.*
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.SerializationFeature
 import com.google.cloud.vision.v1.AnnotateImageRequest
 import com.google.cloud.vision.v1.Image
 import com.google.cloud.vision.v1.ImageAnnotatorClient
 import com.google.protobuf.ByteString
+import io.ktor.application.Application
+import io.ktor.application.call
+import io.ktor.application.install
+import io.ktor.auth.authenticate
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.apache.*
+import io.ktor.client.engine.apache.Apache
 import io.ktor.client.features.json.JacksonSerializer
 import io.ktor.client.features.json.JsonFeature
+import io.ktor.features.CORS
+import io.ktor.features.CallLogging
+import io.ktor.features.ContentNegotiation
+import io.ktor.features.StatusPages
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.http.content.streamProvider
-import io.ktor.jackson.*
+import io.ktor.jackson.jackson
+import io.ktor.request.path
+import io.ktor.request.receiveMultipart
+import io.ktor.response.respond
+import io.ktor.routing.post
+import io.ktor.routing.route
+import io.ktor.routing.routing
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import java.io.File
-import java.util.ArrayList
 import java.io.FileInputStream
+import java.util.*
 
 
 fun main(args: Array<String>): Unit = io.ktor.server.tomcat.EngineMain.main(args)
@@ -34,7 +46,6 @@ fun Application.module(testing: Boolean = false) {
 
     val logger = LoggerFactory.getLogger("Application")
     val tmpDirectory: String = System.getenv("java.io.tmpDir") ?: "/tmp"
-
 
     install(CallLogging) {
         level = Level.INFO
@@ -57,6 +68,8 @@ fun Application.module(testing: Boolean = false) {
         }
     }
 
+    basicAuthentication()
+
     val client = HttpClient(Apache) {
         install(JsonFeature) {
             serializer = JacksonSerializer({ configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) })
@@ -75,46 +88,39 @@ fun Application.module(testing: Boolean = false) {
 
         }
 
-        route("check") {
-            get {
-                logger.info("check is working")
-                val filePath = "/Users/umut/tmp/ktor/aaa.jpg"
-                logger.info(getLabels(filePath).get(0))
-                logger.info("Completed")
+        authenticate(Constants.AUTH_TYPE) {
 
-            }
-        }
+            route("/guess") {
 
-        route("/guess") {
-
-            post {
-                logger.info("Start")
-                val multipart = call.receiveMultipart()
-                var title = ""
-                var filePath = ""
-                multipart.forEachPart { part ->
-                    when (part) {
-                        is PartData.FormItem -> if (part.name == "title") {
-                            title = part.value
-                        }
-                        is PartData.FileItem -> {
-                            val name = part.originalFileName!!
-                            filePath = "$tmpDirectory/$name"
-                            logger.debug("File will be created to $filePath" )
-                            val file = File(filePath)
-                            part.streamProvider().use { its ->
-                                file.outputStream().buffered().use {
-                                    its.copyTo(it)
+                post {
+                    logger.info("Start")
+                    val multipart = call.receiveMultipart()
+                    var title = ""
+                    var filePath = ""
+                    multipart.forEachPart { part ->
+                        when (part) {
+                            is PartData.FormItem -> if (part.name == "title") {
+                                title = part.value
+                            }
+                            is PartData.FileItem -> {
+                                val name = part.originalFileName!!
+                                filePath = "$tmpDirectory/$name"
+                                logger.debug("File will be created to $filePath")
+                                val file = File(filePath)
+                                part.streamProvider().use { its ->
+                                    file.outputStream().buffered().use {
+                                        its.copyTo(it)
+                                    }
                                 }
                             }
                         }
-                    }
-                    part.dispose()
+                        part.dispose()
 
+                    }
+                    val labels = getLabels(filePath)
+                    logger.info("Labels are " + labels)
+                    call.respond(mapOf("guesses" to labels))
                 }
-                val labels = getLabels(filePath)
-                logger.info("Labels are " + labels)
-                call.respond(mapOf("guesses" to labels))
             }
         }
     }
@@ -131,7 +137,7 @@ fun getLabels(filePath: String): List<String> {
     requests.add(request)
     val client = ImageAnnotatorClient.create()
     val response = client.batchAnnotateImages(requests)
-    val responses = response.getResponsesList()
+    val responses = response.responsesList
     return responses.getOrNull(0)!!.webDetection.webEntitiesList.filter { e -> e.description.length > 0 }
         .map { e -> e.description }.toMutableList()
 }
@@ -139,5 +145,4 @@ fun getLabels(filePath: String): List<String> {
 class AuthenticationException : RuntimeException()
 class AuthorizationException : RuntimeException()
 
-data class User(var page: Int, var per_Page: Int)
 
