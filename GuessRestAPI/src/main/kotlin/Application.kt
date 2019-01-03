@@ -38,11 +38,7 @@ import java.io.FileInputStream
 import java.util.*
 
 
-fun main(args: Array<String>): Unit = io.ktor.server.tomcat.EngineMain.main(args)
-
-@Suppress("unused") // Referenced in application.conf
-@kotlin.jvm.JvmOverloads
-fun Application.module(testing: Boolean = false) {
+fun Application.main() {
 
     val logger = LoggerFactory.getLogger("Application")
     val tmpDirectory: String = System.getenv("java.io.tmpDir") ?: "/tmp"
